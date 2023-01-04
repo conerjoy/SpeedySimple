@@ -41,3 +41,5 @@ dependencies {
     implementation 'com.blankj:utilcodex:1.31.1'
     implementation 'com.squareup.retrofit2:retrofit:2.6.1'
 }
+
+apply from: '../publish-mavencentral.gradle'
