@@ -189,8 +189,8 @@ inline fun <T : SpeedyBean<*>> WrapperBean<T>.onMessage(dispatcher: CoroutineDis
             }
         }
     } else {
-        if (response?.msg().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
-            handle(response?.msg() ?: "")
+        if (response?.message().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
+            handle(response?.message() ?: "")
         }
     }
     return this
@@ -201,8 +201,8 @@ inline fun <T : SpeedyBean<*>> WrapperBean<T>.onMessage(dispatcher: CoroutineDis
  */
 inline fun <T : SpeedyBean<*>> WrapperBean<T>.onSuccessMessage(dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: String.() -> Unit): WrapperBean<T> {
     if (error == null) {
-        if (response?.msg().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
-            handle(response?.msg() ?: "")
+        if (response?.message().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
+            handle(response?.message() ?: "")
         }
     }
     return this

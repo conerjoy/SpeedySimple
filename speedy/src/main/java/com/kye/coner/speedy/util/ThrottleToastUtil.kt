@@ -1,6 +1,9 @@
 package com.kye.coner.speedy.util
 
 import com.kye.coner.speedy.Speedy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * toast节流器，用于在规定时间内只提示一次
@@ -15,7 +18,9 @@ object ThrottleToastUtil {
             synchronized(ThrottleToastUtil::class.java) {
                 if (System.currentTimeMillis() - timestamp > TIME_INTERVAL) {
                     timestamp = System.currentTimeMillis()
-                    Speedy.instance.showToast.invoke(msg)
+                    CoroutineScope(Dispatchers.Main).launch {
+                        Speedy.instance.showToast.invoke(msg)
+                    }
                 }
             }
         }
