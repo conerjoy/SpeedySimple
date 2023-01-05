@@ -1,10 +1,12 @@
 package com.kye.coner.speedy
 
+import android.app.Application
+import android.widget.Toast
 import androidx.lifecycle.MutableLiveData
-import com.blankj.utilcode.util.NetworkUtils
 import com.kye.coner.speedy.util.ThrottleToastUtil.showToast
 import com.kye.coner.speedy.bean.SpeedyBean
 import com.kye.coner.speedy.bean.ResponseResultWrapper
+import com.kye.coner.speedy.util.NetworkUtils
 import kotlinx.coroutines.*
 import retrofit2.Retrofit
 import java.lang.Exception
@@ -46,7 +48,7 @@ class Speedy {
         return block.invoke {
             responseHandler(it)
         }.apply { // 先将onComplete(lambda函数)赋值
-            withContext(mDispatcher ?: Dispatchers.Main) {
+            withContext(completeDispatcher ?: Dispatchers.Main) {
                 completeFun?.invoke()  // 触发onComplete(lambda函数)
             }
         }
@@ -64,13 +66,25 @@ class Speedy {
         }
     }
 
+    /**
+     * 显示toast的lambda函数
+     */
+    var showToast: (String) -> Unit = { msg ->
+        application?.let {
+            Toast.makeText(it, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    var application: Application? = null
     lateinit var SPEEDY_RETROFIT: Retrofit // 私有的retrofit对象
 
-    fun init(block: Retrofit.Builder.() -> Retrofit.Builder) {
+    fun init(app: Application, block: Retrofit.Builder.() -> Retrofit.Builder) {
+        application = app
         SPEEDY_RETROFIT = block.invoke(Retrofit.Builder()).build()
     }
 
-    fun init(retrofit: Retrofit) {
+    fun init(app: Application, retrofit: Retrofit) {
+        application = app
         SPEEDY_RETROFIT = retrofit
     }
 
@@ -78,6 +92,7 @@ class Speedy {
         var COMMON_NET_WEAK = "网络不给力，请稍后重试"
         var COMMON_NET_DISCONNECT = "当前无网络，请检查后重试"
 
+        @JvmStatic
         val instance by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
             Speedy()
         }
@@ -92,9 +107,9 @@ val mDisconnectThrowable = ConnectException(Speedy.COMMON_NET_DISCONNECT)
  * 与onApiError、onError互斥
  */
 inline fun <T : SpeedyBean<*>> WrapperBean<T>.onSuccess(dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: ResultHandler<T>): WrapperBean<T> {
-    if (t?.isSuccess() == true) {
+    if (response?.isSuccess() == true) {
         CoroutineScope(dispatcher).launch {
-            t?.let {
+            response?.let {
                 handle(it)
             }
         }
@@ -109,9 +124,9 @@ inline fun <T : SpeedyBean<*>> WrapperBean<T>.onSuccess(dispatcher: CoroutineDis
  * 注意：这个lambda中ResponseResult的参数data被kotlin编译后伪装成了非空类型，实际上基类由java编写，是不具备空安全能力的；在发生ApiException时，data可能是null
  */
 inline fun <T : SpeedyBean<*>> WrapperBean<T>.onApiError(dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: ResultHandler<T>): WrapperBean<T> {
-    if (t?.isSuccess() == false) {
+    if (response?.isSuccess() == false) {
         CoroutineScope(dispatcher).launch {
-            t?.let {
+            response?.let {
                 handle(it)
             }
         }
@@ -174,8 +189,8 @@ inline fun <T : SpeedyBean<*>> WrapperBean<T>.onMessage(dispatcher: CoroutineDis
             }
         }
     } else {
-        if (t?.msg().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
-            handle(t?.msg() ?: "")
+        if (response?.msg().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
+            handle(response?.msg() ?: "")
         }
     }
     return this
@@ -186,8 +201,8 @@ inline fun <T : SpeedyBean<*>> WrapperBean<T>.onMessage(dispatcher: CoroutineDis
  */
 inline fun <T : SpeedyBean<*>> WrapperBean<T>.onSuccessMessage(dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: String.() -> Unit): WrapperBean<T> {
     if (error == null) {
-        if (t?.msg().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
-            handle(t?.msg() ?: "")
+        if (response?.msg().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
+            handle(response?.msg() ?: "")
         }
     }
     return this
@@ -212,7 +227,7 @@ inline fun <T> WrapperBean<T>.onErrorMessage(dispatcher: CoroutineDispatcher = D
  */
 inline fun <T> WrapperBean<T>.onComplete(dispatcher: CoroutineDispatcher = Dispatchers.Main, noinline handle: () -> Unit): WrapperBean<T> {
     completeFun = handle
-    mDispatcher = dispatcher
+    completeDispatcher = dispatcher
     return this
 }
 

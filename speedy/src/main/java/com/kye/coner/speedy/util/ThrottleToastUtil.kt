@@ -1,6 +1,6 @@
 package com.kye.coner.speedy.util
 
-import com.blankj.utilcode.util.ToastUtils
+import com.kye.coner.speedy.Speedy
 
 /**
  * toast节流器，用于在规定时间内只提示一次
@@ -15,7 +15,7 @@ object ThrottleToastUtil {
             synchronized(ThrottleToastUtil::class.java) {
                 if (System.currentTimeMillis() - timestamp > TIME_INTERVAL) {
                     timestamp = System.currentTimeMillis()
-                    ToastUtils.showShort(msg)
+                    Speedy.instance.showToast.invoke(msg)
                 }
             }
         }
