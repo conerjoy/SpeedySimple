@@ -34,9 +34,9 @@ class Speedy {
     /**
      * 快捷发起网络请求
      */
-    fun <T : SpeedyBean<*>> launch(block: WorkHandler<T>) {
+    fun <T : SpeedyBean<*>> launch(networkErrorToast: Boolean? = null, block: WorkHandler<T>) {
         CoroutineScope(Dispatchers.IO).launch { // 网络请求在子线程中执行
-            launchRequest(block)
+            launchRequest(networkErrorToast, block)
         }
     }
 
@@ -44,9 +44,11 @@ class Speedy {
      * 利用协程+retrofit发起请求
      * @param block 发出请求的lambda
      */
-    suspend fun <T : SpeedyBean<*>> launchRequest(block: WorkHandler<T>): WrapperBean<T> {
+    suspend fun <T : SpeedyBean<*>> launchRequest(networkErrorToast: Boolean? = null, block: WorkHandler<T>): WrapperBean<T> {
         return block.invoke {
             responseHandler(it)
+        }.apply {
+            onNetListener(networkErrorToast)
         }.apply { // 先将onComplete(lambda函数)赋值
             withContext(completeDispatcher ?: Dispatchers.Main) {
                 completeFun?.invoke()  // 触发onComplete(lambda函数)
@@ -91,6 +93,7 @@ class Speedy {
     companion object {
         var COMMON_NET_WEAK = "网络不给力，请稍后重试"
         var COMMON_NET_DISCONNECT = "当前无网络，请检查后重试"
+        var NETWORK_ERROR_TOAST: Boolean = true // 是否显示网络异常toast
 
         @JvmStatic
         val instance by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -134,45 +137,55 @@ inline fun <T : SpeedyBean<*>> WrapperBean<T>.onApiError(dispatcher: CoroutineDi
     return this
 }
 
-inline fun <T> WrapperBean<T>.onError(crossinline handle: suspend Exception.() -> Unit): WrapperBean<T> {
-    return onError(true, Dispatchers.Main, handle)
+private inline fun <T> WrapperBean<T>.onNetListener(networkErrorToast: Boolean? = false): WrapperBean<T> {
+    if (error != null) { // 有error对象则认定为其他错误
+        if (error is TimeoutException || error is SocketTimeoutException) {
+            if (networkErrorToast != null) {
+                if (networkErrorToast) {
+                    showToast(mWeakThrowable.message ?: Speedy.COMMON_NET_WEAK)
+                }
+            } else {
+                if (Speedy.NETWORK_ERROR_TOAST) {
+                    showToast(mWeakThrowable.message ?: Speedy.COMMON_NET_WEAK)
+                }
+            }
+        } else {
+            if ((error is ConnectException) || (error is TimeoutException) || (error != null && error!!.message != null && error!!.message?.contains("Unable to resolve") == true)) {
+                if (NetworkUtils.isConnected()) {
+                    if (networkErrorToast != null) {
+                        if (networkErrorToast) {
+                            showToast(mWeakThrowable.message ?: Speedy.COMMON_NET_WEAK)
+                        }
+                    } else {
+                        if (Speedy.NETWORK_ERROR_TOAST) {
+                            showToast(mWeakThrowable.message ?: Speedy.COMMON_NET_WEAK)
+                        }
+                    }
+                } else {
+                    if (networkErrorToast != null) {
+                        if (networkErrorToast) {
+                            showToast(mDisconnectThrowable.message ?: Speedy.COMMON_NET_DISCONNECT)
+                        }
+                    } else {
+                        if (Speedy.NETWORK_ERROR_TOAST) {
+                            showToast(mDisconnectThrowable.message ?: Speedy.COMMON_NET_DISCONNECT)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return this
 }
 
 /**
  * 请求onError的扩展方法
  * 与onSuccess、ApiError互斥
  */
-inline fun <T> WrapperBean<T>.onError(networkErrorToast: Boolean = true, dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: suspend Exception.() -> Unit): WrapperBean<T> {
+inline fun <T> WrapperBean<T>.onError(dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: suspend Exception.() -> Unit): WrapperBean<T> {
     if (error != null) { // 有error对象则认定为其他错误
-        if (error is TimeoutException || error is SocketTimeoutException) {
-            if (networkErrorToast) {
-                showToast(mWeakThrowable.message ?: Speedy.COMMON_NET_WEAK)
-            }
-            CoroutineScope(dispatcher).launch {
-                handle(mWeakThrowable)
-            }
-        } else {
-            if ((error is ConnectException) || (error is TimeoutException) || (error != null && error!!.message != null && error!!.message?.contains("Unable to resolve") == true)) {
-                if (NetworkUtils.isConnected()) {
-                    if (networkErrorToast) {
-                        showToast(mWeakThrowable.message ?: Speedy.COMMON_NET_WEAK)
-                    }
-                    CoroutineScope(dispatcher).launch {
-                        handle(mWeakThrowable)
-                    }
-                } else {
-                    if (networkErrorToast) {
-                        showToast(mDisconnectThrowable.message ?: Speedy.COMMON_NET_DISCONNECT)
-                    }
-                    CoroutineScope(dispatcher).launch {
-                        handle(mDisconnectThrowable)
-                    }
-                }
-            } else {
-                CoroutineScope(dispatcher).launch {
-                    error?.let { handle(it) }
-                }
-            }
+        CoroutineScope(dispatcher).launch {
+            error?.let { handle(it) }
         }
     }
     return this
@@ -183,21 +196,15 @@ inline fun <T> WrapperBean<T>.onError(networkErrorToast: Boolean = true, dispatc
  */
 inline fun <T : SpeedyBean<*>> WrapperBean<T>.onMessage(dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: String.() -> Unit): WrapperBean<T> {
     if (error != null) {
-        error?.message?.let {
-            if (it.isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
-                handle(it)
-            }
-        }
+        onErrorMessage(dispatcher, handle)
     } else {
-        if (response?.message().isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
-            handle(response?.message() ?: "")
-        }
+        onSuccessMessage(dispatcher, handle)
     }
     return this
 }
 
 /**
- * 用于展示请求成功状态下msg的扩展方法
+ * 用于展示请求成功状态下msg的扩展方法（包含onSuccess和onApiError）
  */
 inline fun <T : SpeedyBean<*>> WrapperBean<T>.onSuccessMessage(dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: String.() -> Unit): WrapperBean<T> {
     if (error == null) {
@@ -209,17 +216,12 @@ inline fun <T : SpeedyBean<*>> WrapperBean<T>.onSuccessMessage(dispatcher: Corou
 }
 
 /**
- * 用于展示请求成功状态下msg的扩展方法
+ * 用于展示请求成功状态下msg的扩展方法（包含onError）
  */
 inline fun <T> WrapperBean<T>.onErrorMessage(dispatcher: CoroutineDispatcher = Dispatchers.Main, crossinline handle: String.() -> Unit): WrapperBean<T> {
-    if (error != null) {
-        error?.message?.let {
-            if (it.isNullOrEmpty().not()) CoroutineScope(dispatcher).launch {
-                handle(it)
-            }
-        }
+    return onError(dispatcher) {
+        if (message.isNullOrEmpty().not()) handle(message!!)
     }
-    return this
 }
 
 /**

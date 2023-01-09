@@ -15,9 +15,9 @@ open class BaseVM : ViewModel() {
      * 利用协程+retrofit发起请求
      * @param block 发出请求的lambda
      */
-    fun <T: SpeedyBean<*>> launch(block: WorkHandler<T>) {
+    fun <T: SpeedyBean<*>> launch(networkErrorToast: Boolean? = null, block: WorkHandler<T>) {
         viewModelScope.launch {
-            launchInScope(block)
+            launchInScope(networkErrorToast, block)
         }
     }
 
@@ -25,9 +25,9 @@ open class BaseVM : ViewModel() {
      * 利用协程+retrofit发起请求
      * @param block 发出请求的lambda
      */
-    suspend fun <T: SpeedyBean<*>> launchInScope(block: WorkHandler<T>) {
+    suspend fun <T: SpeedyBean<*>> launchInScope(networkErrorToast: Boolean? = null, block: WorkHandler<T>) {
         LOADING use true
-        Speedy.instance.launchRequest(block)
+        Speedy.instance.launchRequest(networkErrorToast, block)
             .onError {
                 ERROR use true
             }.onApiError {

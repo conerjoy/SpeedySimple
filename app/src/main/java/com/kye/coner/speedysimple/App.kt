@@ -17,5 +17,6 @@ class App : Application() {
         Speedy.instance.showToast = {
             ToastUtils.showShort(it)
         }
+        Speedy.NETWORK_ERROR_TOAST = true
     }
 }
