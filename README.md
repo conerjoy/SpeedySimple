@@ -41,7 +41,7 @@
         fun getResult() {
             launch<ResponseResult<Any>> {
                 invoke {
-                    buildService<Test>().getSomething(mapOf("key" to "22ab70c7cede70e9fcf8bf442b669145"))
+                    buildService<Test>().getSomething(mapOf("key" to "xxxx"))
                 }.onSuccess {
                     _result use result.toString()
                 }.onApiError {
