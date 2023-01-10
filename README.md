@@ -1,12 +1,12 @@
 # 关于
 
-这是一个利用Retrofit+协程+ViewModel的便捷发起网络请求的工具
+这是一个利用Retrofit+协程+ViewModel的便捷、精简发起网络请求的工具
 
 # 如何使用
 
 ## 1、依赖
 
-    implementation 'io.github.conerjoy:Speedy:1.0.4'
+    implementation 'io.github.conerjoy:Speedy:1.0.5'
   
 ## 2、初始化
 
@@ -18,18 +18,18 @@
     Speedy.instance.showToast = {
         ToastUtils.showShort(it)
     }
+    Speedy.NETWORK_ERROR_TOAST = true // 全局生效
     
 ## 3、实现接口
 
     open class ResponseResult<T> : SpeedyBean<T> {
-        var reason: String = ""
-        var result: T? = null
-        var error_code: Int = -1
-        var msg: String = ""
+    var reason: String = ""
+    var result: T? = null
+    var error_code: Int = -1
 
-        override fun isSuccess() : Boolean = error_code == 0
+    override fun isSuccess() : Boolean = error_code == 0
 
-        override fun message(): String = msg
+    override fun message(): String = reason
     }
     
 ## 4、使用
