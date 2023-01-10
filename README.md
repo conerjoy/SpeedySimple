@@ -62,3 +62,6 @@
             suspend fun getSomething(@FieldMap map: Map<String, Any>): ResponseResult<Any>
         }
     }
+
+## 感谢
+如果对您有价值、有帮助，请怒点star
